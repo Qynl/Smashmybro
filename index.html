@@ -13,6 +13,7 @@
   <main id="app-shell">
     <canvas id="game" aria-label="GETAWAY game canvas"></canvas>
 
+    <!-- Main Title Menu -->
     <section id="title-screen" class="screen active" aria-label="Main menu">
       <div class="title-noise"></div>
       <div class="title-art" aria-hidden="true">
@@ -31,18 +32,27 @@
       </div>
       <div class="menu-panel">
         <div class="menu-copy">
-          <p class="label">DUSTFALL COUNTY // 01</p>
-          <p>Take the satchel. Read the trail. Leave no witness.</p>
+          <p class="label">DUSTFALL COUNTY // OPEN SANDBOX</p>
+          <p>Take high-stakes contracts. Outrun the sheriff posse. Tune your ride in the safehouse garages.</p>
         </div>
         <div class="menu-actions">
           <button id="career-btn" class="primary-btn"><span>01</span> START CAREER <b>↵</b></button>
-          <button id="endless-btn" class="ghost-btn"><span>02</span> OUTLAW RUN <b>↵</b></button>
+          <button id="endless-btn" class="ghost-btn"><span>02</span> OUTLAW RUN (ENDLESS) <b>↵</b></button>
+          <button id="how-to-play-btn" class="ghost-btn"><span>03</span> HOW TO PLAY <b>?</b></button>
         </div>
-        <div class="seed-row"><span>COUNTY SEED</span><strong id="menu-seed">DUST-091</strong><button id="reroll-btn" class="icon-btn" aria-label="Reroll county seed">↻</button></div>
+        <div class="seed-row">
+          <span>COUNTY SEED</span>
+          <strong id="menu-seed">DUST-091</strong>
+          <button id="reroll-btn" class="icon-btn" title="Reroll county seed" aria-label="Reroll county seed">↻</button>
+        </div>
       </div>
-      <div class="title-footer"><span>© 2026 / SMASHMYBRO STUDIOS</span><span>WASD / ARROWS TO DRIVE&nbsp;&nbsp; • &nbsp;&nbsp;E TO ACT</span></div>
+      <div class="title-footer">
+        <span>© 2026 / SMASHMYBRO STUDIOS</span>
+        <span>WASD / ARROWS DRIVE &bull; SPACE DRIFT/BRAKE &bull; SHIFT NITRO &bull; E/F ACTION &bull; C CALTROPS</span>
+      </div>
     </section>
 
+    <!-- Pause Modal -->
     <section id="pause-screen" class="screen modal-screen" aria-label="Paused" hidden>
       <div class="modal-card">
         <p class="eyebrow">TELEGRAPH LINE CUT</p>
@@ -50,38 +60,186 @@
         <p class="modal-sub">The horses are watered. The law is not waiting.</p>
         <div class="pause-stats" id="pause-stats"></div>
         <button id="resume-btn" class="primary-btn">RESUME <b>ESC</b></button>
+        <button id="help-btn" class="ghost-btn">CONTROLS &amp; TIPS</button>
         <button id="restart-btn" class="ghost-btn">RESTART RUN</button>
+        <button id="menu-btn" class="ghost-btn">RETURN TO MENU</button>
       </div>
     </section>
 
+    <!-- Garage Workshop Modal -->
+    <section id="garage-screen" class="screen modal-screen" aria-label="Garage Workshop" hidden>
+      <div class="modal-card garage-card">
+        <div class="modal-header">
+          <p class="eyebrow" id="garage-location">THE SWITCHYARD // WORKSHOP</p>
+          <span class="garage-wallet">CASH: <strong id="garage-cash">$000</strong></span>
+        </div>
+        <h2>OUTLAW<span>GARAGE</span></h2>
+        <p class="modal-sub">Repair damage, wipe heat, tune performance, and swap vehicles.</p>
+        
+        <div class="garage-tabs">
+          <button id="tab-tuning" class="tab-btn active">TUNING &amp; GEAR</button>
+          <button id="tab-vehicles" class="tab-btn">VEHICLE FLEET</button>
+        </div>
+
+        <div id="garage-tuning-panel" class="garage-grid">
+          <!-- Dynamic Upgrade Cards inserted by game.js -->
+        </div>
+
+        <div id="garage-vehicle-panel" class="garage-grid" hidden>
+          <!-- Dynamic Vehicle Cards inserted by game.js -->
+        </div>
+
+        <div class="garage-footer">
+          <button id="garage-leave-btn" class="primary-btn">EXIT GARAGE &amp; HIT THE ROAD <b>E / ESC</b></button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Busted / Game Over Screen -->
+    <section id="busted-screen" class="screen modal-screen" aria-label="Caught by the Law" hidden>
+      <div class="modal-card busted-card">
+        <p class="eyebrow" id="busted-eyebrow">COUNTY MANHUNT CONCLUDED</p>
+        <h2 id="busted-title">BUSTED<span>.</span></h2>
+        <p class="modal-sub" id="busted-sub">The sheriff posse cornered you. The county takes its cut.</p>
+        <div class="pause-stats" id="busted-stats"></div>
+        <button id="busted-continue-btn" class="primary-btn">PAY BAIL &amp; KEEP RUNNING <b>↵</b></button>
+        <button id="busted-restart-btn" class="ghost-btn">START FRESH RUN</button>
+      </div>
+    </section>
+
+    <!-- How to Play Screen -->
+    <section id="help-screen" class="screen modal-screen" aria-label="How to play" hidden>
+      <div class="modal-card help-card">
+        <p class="eyebrow">SURVIVAL MANUAL</p>
+        <h2>OUTLAW<span>GUIDE</span></h2>
+        <div class="help-content">
+          <div class="help-section">
+            <h3><span>01</span> DRIVING &amp; EVASION</h3>
+            <p><b>WASD / Arrow Keys</b> to Steer &amp; Accelerate. Hold <b>SPACE</b> to initiate powerslides &amp; drifts around tight corners. Hold <b>SHIFT</b> for a Nitro speed burst.</p>
+          </div>
+          <div class="help-section">
+            <h3><span>02</span> OUTLAW GADGETS &amp; ACTIONS</h3>
+            <p>Press <b>E</b> or <b>F</b> to enter/exit vehicles, take jobs, and open safehouse garages. Press <b>C</b> or <b>G</b> to drop <b>Spike Caltrops</b> behind you to shred pursuers' tires.</p>
+          </div>
+          <div class="help-section">
+            <h3><span>03</span> CONTRACTS &amp; HEISTS</h3>
+            <p>Visit Telegraph Outposts and Banks marked with yellow beacons on your minimap to accept high-payout jobs. Multi-stage heists reward speed and stealth.</p>
+          </div>
+          <div class="help-section">
+            <h3><span>04</span> SAFEHOUSE GARAGES</h3>
+            <p>Pull into safehouse garages to repair damage, respray paint (instantly resets wanted Heat!), tune engines, install ram-bumpers, and unlock fast rides.</p>
+          </div>
+        </div>
+        <button id="help-close-btn" class="primary-btn">UNDERSTOOD <b>↵</b></button>
+      </div>
+    </section>
+
+    <!-- In-Game HUD -->
     <section id="game-ui" aria-live="polite">
       <header class="hud-top">
         <div class="hud-brand"><span class="brand-mark">G</span><span>GETAWAY</span><i></i></div>
-        <div class="district-readout"><span class="tiny-label">CURRENT COUNTY</span><strong id="district-name">DUSTFALL MAIN STREET</strong></div>
-        <div class="hud-money"><span class="tiny-label">CASH</span><strong id="money-value">$000</strong></div>
-        <button id="pause-btn" class="hud-pause" aria-label="Pause">Ⅱ</button>
+        <div class="district-readout">
+          <span class="tiny-label">CURRENT DISTRICT</span>
+          <strong id="district-name">DUSTFALL MAIN STREET</strong>
+        </div>
+        <div class="hud-money">
+          <span class="tiny-label">OUTLAW CASH</span>
+          <strong id="money-value">$000</strong>
+        </div>
+        <button id="pause-btn" class="hud-pause" title="Pause Game (ESC)" aria-label="Pause">Ⅱ</button>
       </header>
+
+      <!-- Mission Status Card -->
       <aside class="mission-card" id="mission-card">
-        <div class="mission-kicker"><span id="mission-status-dot"></span><span id="mission-kicker-text">AVAILABLE JOB</span><span class="mission-code" id="mission-code">JOB—001</span></div>
+        <div class="mission-kicker">
+          <span id="mission-status-dot"></span>
+          <span id="mission-kicker-text">AVAILABLE JOB</span>
+          <span class="mission-code" id="mission-code">JOB—001</span>
+        </div>
         <h2 id="mission-title">LOADING DUSTFALL</h2>
-        <p id="mission-description">Ride to the telegraph office to pick up a job.</p>
-        <div class="mission-meta"><span id="mission-pay">$—</span><span id="mission-risk">RISK / LOW</span><span id="mission-clock">READY</span></div>
+        <p id="mission-description">Ride to the telegraph office to pick up a contract.</p>
+        <div class="mission-meta">
+          <span id="mission-pay">$0</span>
+          <span id="mission-risk">RISK / LOW</span>
+          <span id="mission-clock">READY</span>
+        </div>
       </aside>
+
+      <!-- Wanted Heat Panel -->
       <div class="heat-panel" id="heat-panel">
-        <div class="heat-label"><span>LAW HEAT</span><strong id="heat-stage">COLD</strong></div>
-        <div class="heat-pips" id="heat-pips"><i></i><i></i><i></i><i></i><i></i></div>
+        <div class="heat-label">
+          <span>WANTED HEAT</span>
+          <strong id="heat-stage">QUIET</strong>
+        </div>
+        <div class="heat-pips" id="heat-pips">
+          <i title="Heat 1"></i>
+          <i title="Heat 2"></i>
+          <i title="Heat 3"></i>
+          <i title="Heat 4"></i>
+          <i title="Heat 5"></i>
+        </div>
       </div>
+
+      <!-- Vehicle Speed & Nitro Meter -->
       <div class="speed-panel">
-        <strong id="speed-value">000</strong><span>KM/H</span>
-        <div class="vehicle-condition"><span id="vehicle-name">DUSTWIND COUPE</span><div><i id="condition-bar"></i></div></div>
+        <div class="drift-counter" id="drift-counter" hidden><span id="drift-score">+150</span> <i>DRIFT</i></div>
+        <strong id="speed-value">000</strong>
+        <span>KM/H</span>
+        <div class="vehicle-condition">
+          <span id="vehicle-name">DUSTWIND COUPE</span>
+          <div class="bar-shell"><i id="condition-bar"></i></div>
+        </div>
+        <div class="nitro-gauge" id="nitro-gauge">
+          <span class="tiny-label">NITRO BOOST</span>
+          <div class="bar-shell nitro-shell"><i id="nitro-bar"></i></div>
+        </div>
+        <div class="caltrop-display" id="caltrop-display">
+          <span>CALTROPS: <strong id="caltrop-count">3</strong></span>
+          <kbd>C</kbd>
+        </div>
       </div>
-      <div class="radio-panel" id="radio-panel"><span class="radio-light"></span><strong id="radio-source">TELEGRAPH / COUNTY BAND</strong><p id="radio-line">Storm rolling off Red Mesa. Keep to the hard road.</p></div>
-      <div class="interaction-prompt" id="interaction-prompt" hidden><kbd>E</kbd><span id="interaction-text">ENTER VEHICLE</span></div>
-      <div class="crosshair" id="crosshair" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
-      <div class="minimap" id="minimap"><canvas id="map-canvas" width="180" height="180"></canvas><span class="map-north">N</span><span class="map-label" id="map-label">DUSTFALL COUNTY</span></div>
+
+      <!-- County Radio Ticker -->
+      <div class="radio-panel" id="radio-panel">
+        <span class="radio-light"></span>
+        <strong id="radio-source">TELEGRAPH / COUNTY BAND</strong>
+        <p id="radio-line">Storm rolling off Red Mesa. Keep to the hard road.</p>
+      </div>
+
+      <!-- Interaction Prompt -->
+      <div class="interaction-prompt" id="interaction-prompt" hidden>
+        <kbd id="interaction-key">E</kbd>
+        <span id="interaction-text">ENTER VEHICLE</span>
+      </div>
+
+      <!-- Minimap & GPS Navigator -->
+      <div class="minimap" id="minimap">
+        <canvas id="map-canvas" width="180" height="180"></canvas>
+        <span class="map-north">N</span>
+        <span class="map-label" id="map-label">DUSTFALL COUNTY</span>
+        <div class="map-gps" id="map-gps"><span id="gps-dist">0m</span> <strong id="gps-target">OBJECTIVE</strong></div>
+      </div>
+
+      <!-- Toast Alerts Stack -->
       <div class="toast-stack" id="toast-stack"></div>
-      <div class="control-hint" id="control-hint"><span><b>WASD</b> MOVE</span><span><b>SPACE</b> BRAKE</span><span><b>E</b> ACTION</span><span><b>SHIFT</b> SPRINT</span></div>
-      <div class="touch-controls" id="touch-controls" aria-hidden="true"><div class="touch-stick"><i></i></div><button data-touch="brake">BRAKE</button><button data-touch="action">E</button></div>
+
+      <!-- Bottom Controls Quick Hint -->
+      <div class="control-hint" id="control-hint">
+        <span><b>WASD/ARROWS</b> DRIVE</span>
+        <span><b>SPACE</b> DRIFT / BRAKE</span>
+        <span><b>SHIFT</b> NITRO BOOST</span>
+        <span><b>E / F</b> ACTION / GARAGE</span>
+        <span><b>C</b> CALTROPS</span>
+      </div>
+
+      <!-- Touch Controls for Mobile Devices -->
+      <div class="touch-controls" id="touch-controls" aria-hidden="true">
+        <div class="touch-stick"><i></i></div>
+        <button data-touch="nitro" class="touch-nitro">NITRO</button>
+        <button data-touch="brake" class="touch-brake">DRIFT</button>
+        <button data-touch="action" class="touch-action">E</button>
+        <button data-touch="caltrop" class="touch-caltrop">TRAP</button>
+      </div>
     </section>
   </main>
   <script src="game.js"></script>
