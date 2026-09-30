@@ -305,6 +305,11 @@
 
   function updateOnFoot(dt) {
     const a = axis();
+    if ((justPressed[' '] || justPressed.space) && player.jump <= 0 && !player.crouching) {
+      player.jump = .55;
+      beep(190, .045, 'sine');
+    }
+    if (player.jump > 0) player.jump = Math.max(0, player.jump - dt);
     const sprint = !!(keys.Shift || keys.shift) && player.stamina > .02;
     const speed = sprint ? 178 : (player.crouching ? 62 : 112);
     if (sprint && (a.x || a.y)) player.stamina = Math.max(0, player.stamina - dt * .22); else player.stamina = Math.min(1, player.stamina + dt * .13);
@@ -778,7 +783,9 @@
 
   function drawPerson() {
     const bob = Math.sin(elapsed * (player.crouching ? 3 : 7)) * (player.crouching ? 1 : 2);
-    ctx.save(); ctx.translate(player.x, player.y + bob);
+    const jumpLift = player.jump > 0 ? Math.sin((1 - player.jump / .55) * Math.PI) * 11 : 0;
+    ctx.save();
+    ctx.translate(player.x, player.y + bob - jumpLift);
     ctx.fillStyle = 'rgba(0,0,0,.48)'; ctx.beginPath(); ctx.ellipse(0, 9, player.crouching ? 9 : 7, 4, 0, 0, TAU); ctx.fill();
     ctx.rotate(player.angle);
     ctx.fillStyle = player.crouching ? '#284d52' : '#263f4b'; ctx.fillRect(-5, -5, 10, 15);
