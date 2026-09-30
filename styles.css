@@ -33,7 +33,7 @@ h1 span { color:var(--acid); }
 .menu-actions { display:flex; flex:1; flex-direction:column; gap:8px; }
 .primary-btn, .ghost-btn { display:flex; align-items:center; justify-content:space-between; min-height:45px; padding:0 14px; border:1px solid transparent; background:none; text-align:left; font:700 17px 'Barlow Condensed',sans-serif; letter-spacing:.08em; transition:.18s ease; }
 .primary-btn { background:var(--acid); color:#0b0f13; box-shadow:4px 4px 0 rgba(135,174,178,.45); }
-.primary-btn:hover { background:#efffa7; transform:translate(2px,-2px); box-shadow:6px 6px 0 rgba(135,174,178,.5); }
+.primary-btn:hover { background:#f0d38a; transform:translate(2px,-2px); box-shadow:6px 6px 0 rgba(135,174,178,.5); }
 .ghost-btn { border-color:rgba(244,231,203,.25); color:var(--ink); }
 .ghost-btn:hover { border-color:var(--cyan); color:var(--cyan); background:rgba(135,174,178,.08); }
 .primary-btn span, .ghost-btn span { margin-right:15px; font:700 10px 'Space Mono',monospace; opacity:.55; }

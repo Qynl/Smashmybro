@@ -33,10 +33,17 @@
   let playerCar;
   let police = [];
   let traffic = [];
+  let lawSearch = { x: 0, y: 0, ttl: 0 };
   let mission;
   let money = 460;
+  let careerCash = 460;
+  let careerStreak = 0;
+  let bestStreak = 0;
+  let bestScore = 0;
   let heat = 0;
+  let weather = { kind: 'storm', wet: true };
   let camera = { x: 700, y: 700, shake: 0 };
+  const SAVE_KEY = 'getaway-dustfall-career-v2';
   let rain = [];
   let toastQueue = [];
   let radioTimer = 0;
@@ -74,6 +81,24 @@
   function rngFrom(seed) { let s = hashString(seed) || 1; return () => { s ^= s << 13; s ^= s >>> 17; s ^= s << 5; return ((s >>> 0) / 4294967296); }; }
   function pick(rng, list) { return list[Math.floor(rng() * list.length)]; }
   function choice(list) { return list[Math.floor(Math.random() * list.length)]; }
+
+  function loadCareer() {
+    try {
+      if (typeof localStorage === 'undefined') return;
+      const save = JSON.parse(localStorage.getItem(SAVE_KEY) || '{}');
+      careerCash = Number.isFinite(save.cash) ? Math.max(460, save.cash) : 460;
+      bestStreak = Number.isFinite(save.bestStreak) ? Math.max(0, save.bestStreak) : 0;
+      bestScore = Number.isFinite(save.bestScore) ? Math.max(0, save.bestScore) : 0;
+    } catch (e) { careerCash = 460; }
+  }
+
+  function persistCareer() {
+    careerCash = Math.max(0, money);
+    bestScore = Math.max(bestScore, money + bestStreak * 500);
+    try {
+      if (typeof localStorage !== 'undefined') localStorage.setItem(SAVE_KEY, JSON.stringify({ cash: careerCash, bestStreak, bestScore, seed: seedText }));
+    } catch (e) { /* Private browsing can disable storage; the run still works. */ }
+  }
 
   function resize() {
     canvas.width = W;
@@ -175,7 +200,8 @@
   function resetRain() {
     const r = rngFrom(seedText + ':rain');
     rain = [];
-    for (let i = 0; i < 135; i++) rain.push({ x: r() * W, y: r() * H, len: 5 + r() * 12, speed: 220 + r() * 260, alpha: .12 + r() * .36, slant: 4 + r() * 8 });
+    const count = weather.wet ? 135 : 72;
+    for (let i = 0; i < count; i++) rain.push({ x: r() * W, y: r() * H, len: weather.wet ? 5 + r() * 12 : 2 + r() * 5, speed: weather.wet ? 220 + r() * 260 : 24 + r() * 42, alpha: weather.wet ? .12 + r() * .36 : .06 + r() * .16, slant: weather.wet ? 4 + r() * 8 : 1 + r() * 4 });
   }
 
   function newMission(isFirst = false) {
@@ -192,8 +218,10 @@
     let destination = { ...pick(r, world.jobSites) };
     let tries = 0;
     while (dist(start, destination) < 700 && tries++ < 10) destination = { ...pick(r, world.jobSites) };
+    const handoff = { ...pick(r, world.jobSites) };
+    const retrievalDoor = type.key === 'recovery' && world.doors.length ? world.doors.slice().sort((a, b) => dist(a, destination) - dist(b, destination))[0] : pick(r, world.doors);
     const payout = 260 + type.risk * 160 + Math.floor(r() * 180);
-    mission = { number: missionNumber, ...type, start, destination, payout, state: 'available', phase: 'accept', timer: 0, complication: pick(r, ['a blocked trail', 'rain-swollen crossing', 'a telegraph alert', 'a witness nearby', 'sheriff patrol ahead', 'rival riders in town']), revealed: false, lastToast: 0 };
+    mission = { number: missionNumber, ...type, start, destination, originalDestination: { ...destination }, handoff, retrievalDoor, payout, state: 'available', phase: 'accept', timer: 0, complication: pick(r, ['a blocked trail', 'rain-swollen crossing', 'a telegraph alert', 'a witness nearby', 'sheriff patrol ahead', 'rival riders in town']), revealed: false, quietBonus: false, lastToast: 0 };
     radio(type.radio);
   }
 
@@ -206,18 +234,23 @@
     pauseScreen.hidden = true;
     gameUI.classList.add('active');
     world = buildWorld(seedText);
+    const forecast = rngFrom(seedText + ':forecast')();
+    weather = forecast > .3 ? { kind: 'storm', wet: true } : { kind: 'dry', wet: false };
     resetRain();
     traffic = world.trafficCars.map(v => ({ ...v }));
     police = [];
+    lawSearch = { x: world.hideouts[0].x, y: world.hideouts[0].y, ttl: 0 };
     player = { x: world.hideouts[0].x, y: world.hideouts[0].y + 8, angle: 0, onFoot: false, crouching: false, hidden: false, stamina: 1, jump: 0, interior: null, interiorPos: { x: 0, y: 0 } };
     playerCar = makeVehicle(mode === 'endless' ? 'compact' : 'sedan', player.x, player.y, -Math.PI / 2, true);
-    money = mode === 'endless' ? 0 : 460;
+    money = mode === 'endless' ? 0 : careerCash;
+    careerStreak = 0;
     heat = 0;
     missionNumber = 1;
     camera = { x: player.x, y: player.y, shake: 0 };
     toastQueue = [];
     newMission(true);
     notify(mode === 'endless' ? 'OUTLAW RUN // NO SAFETY NET' : 'DUSTFALL COUNTY IS OPEN', 'good');
+    notify(weather.wet ? 'FORECAST // RED MESA STORM' : 'FORECAST // DRY TRAIL, LONG SHADOWS', '');
     notify('Ride to the telegraph. Press E to take the job.', '');
     lastTime = performance.now();
     requestAnimationFrame(loop);
@@ -369,6 +402,7 @@
       if (visible) {
         cop.state = 'pursuit';
         cop.lastKnown = { x: target.x, y: target.y };
+        lawSearch = { x: target.x, y: target.y, ttl: 9 };
         cop.lost = 0;
         heat = clamp(heat + dt * .035, 0, 5);
       } else if (cop.state === 'pursuit') {
@@ -386,9 +420,10 @@
       if (blocked(cop.x, cop.y, 16)) { cop.angle += (Math.random() > .5 ? 1 : -1) * 1.1; cop.x -= Math.cos(cop.angle) * 9; cop.y -= Math.sin(cop.angle) * 9; }
       if (dist(cop, target) < (player.onFoot ? 24 : 36) && !player.interior) { caught(); return; }
     }
+    lawSearch.ttl = Math.max(0, lawSearch.ttl - dt);
     if (!player.interior && !player.hidden && police.length === 0 && heat > 0) heat = Math.max(0, heat - dt * .025);
     if (player.interior || player.hidden) heat = Math.max(0, heat - dt * .055);
-    if (heat < .3 && police.length === 0) player.hidden = false;
+    if (heat < .3 && police.length === 0) { player.hidden = false; lawSearch.ttl = 0; }
   }
 
   function updateMission(dt) {
@@ -396,9 +431,10 @@
     if (mission.state === 'active') {
       mission.timer += dt;
       if (mission.timer > 9 && !mission.revealed) { mission.revealed = true; notify('COMPLICATION // ' + mission.complication.toUpperCase(), 'warn'); addHeat(mission.risk * .15); }
-      const target = mission.phase === 'drop' || mission.phase === 'escape' ? mission.destination : mission.start;
-      if (dist(targetPos(), target) < 76 && mission.phase === 'drop' && justPressed.e) completeMission();
-      if (dist(targetPos(), target) < 76 && mission.phase === 'escape' && !player.onFoot) completeMission();
+      if (mission.key === 'quiet' && heat > 1.4 && !mission.quietBroken) { mission.quietBroken = true; notify('QUIET BONUS LOST // THE COUNTY HEARD THAT', 'warn'); }
+      const target = getMissionTarget();
+      if (target && mission.phase === 'escape' && !player.onFoot && dist(targetPos(), target) < 76) completeMission();
+      if (target && mission.phase === 'handoff' && player.onFoot && dist(targetPos(), target) < 76 && justPressed.e) completeMission();
     } else if (mission.state === 'cooldown') {
       mission.timer += dt;
       if (mission.timer > 2.5) { missionNumber++; newMission(false); }
@@ -419,7 +455,7 @@
     camera.shake = Math.max(0, camera.shake - dt * 1.9);
   }
 
-  function weatherWet() { return true; }
+  function weatherWet() { return weather.wet; }
 
   function blocked(x, y, radius) {
     if (x < 20 || y < 20 || x > WORLD_W - 20 || y > WORLD_H - 20) return true;
@@ -432,25 +468,62 @@
   function action() {
     if (player.interior) { exitInterior(); return; }
     const p = targetPos();
+    if (mission && mission.state === 'available' && dist(p, mission.start) < 90) { acceptMission(); return; }
+    if (mission && mission.state === 'active') {
+      const target = getMissionTarget();
+      if (target && dist(p, target) < 92) {
+        if (mission.phase === 'route') {
+          if (mission.key === 'recovery') {
+            if (!player.onFoot) { exitVehicle(); return; }
+            mission.phase = 'retrieve';
+            mission.destination = mission.retrievalDoor;
+            notify('LEDGER JOB // FIND THE RIGHT DOOR', 'good');
+            radio('Ledger is inside. Sheriff riders are checking the street.');
+            return;
+          }
+          if (mission.key === 'extraction') {
+            mission.phase = 'escape';
+            mission.destination = mission.handoff;
+            addHeat(.55);
+            notify('WITNESS SECURED // GET THEM ACROSS THE COUNTY', 'good');
+            radio('Contact is moving with you. Do not stop for the law.');
+            return;
+          }
+          if (mission.key === 'switch') {
+            if (!player.onFoot) { exitVehicle(); return; }
+            mission.phase = 'steal';
+            notify('HOT WAGON BURNED // TAKE SOMETHING CLEAN', 'good');
+            radio('Old wagon is abandoned. Find another set of wheels.');
+            return;
+          }
+          if (mission.key === 'quiet' && heat > 1.4) notify('QUIET RUN // THE BONUS IS ALREADY GONE', 'warn');
+          else completeMission();
+          return;
+        }
+        if (mission.phase === 'handoff' && player.onFoot) { completeMission(); return; }
+      }
+    }
+    const hideout = world.hideouts.find(h => dist(p, h) < 82);
+    if (hideout) {
+      if (!player.onFoot && Math.abs(playerCar.speed) < 35) { useHideout(hideout); return; }
+      if (player.onFoot) { useHideout(hideout); return; }
+    }
     if (player.onFoot) {
-      if (mission && mission.state === 'available' && dist(p, mission.start) < 90) { acceptMission(); return; }
-      if (mission && mission.state === 'active' && mission.phase === 'drop' && dist(p, mission.destination) < 90) { completeMission(); return; }
-      if (dist(p, playerCar) < 45) { enterVehicle(playerCar); return; }
+      if (dist(p, playerCar) < 45) {
+        if (mission && mission.state === 'active' && mission.phase === 'steal') { notify('THAT WAGON IS BURNED // FIND A CLEAN RIDE', 'warn'); return; }
+        enterVehicle(playerCar); return;
+      }
       const abandoned = traffic.find(v => v.abandoned && dist(p, v) < 40);
       if (abandoned) { stealVehicle(abandoned); return; }
       const door = world.doors.find(d => dist(p, d) < 55);
       if (door) { enterInterior(door); return; }
-    } else if (mission && mission.state === 'available' && dist(p, mission.start) < 90) {
-      acceptMission(); return;
-    } else if (mission && mission.state === 'active' && mission.phase === 'drop' && dist(p, mission.destination) < 90) {
-      completeMission(); return;
     }
     if (!player.onFoot && Math.abs(playerCar.speed) < 35 && justPressed.e) exitVehicle();
   }
 
   function acceptMission() {
     mission.state = 'active';
-    mission.phase = 'drop';
+    mission.phase = 'route';
     mission.timer = 0;
     mission.revealed = false;
     addHeat(mission.risk * .22);
@@ -464,12 +537,40 @@
     mission.state = 'cooldown';
     mission.phase = 'done';
     mission.timer = 0;
-    money += mission.payout;
+    mission.quietBonus = mission.key === 'quiet' && !mission.quietBroken && heat < 1.4;
+    const bonus = mission.quietBonus ? Math.round(mission.payout * .35) : 0;
+    const award = mission.payout + bonus;
+    mission.award = award;
+    money += award;
+    careerStreak += 1;
+    bestStreak = Math.max(bestStreak, careerStreak);
+    persistCareer();
     addHeat(mission.risk * .72 + (mission.revealed ? .35 : 0));
-    notify(`JOB COMPLETE // ${formatMoney(mission.payout)} CLEARED`, 'good');
+    notify(`JOB COMPLETE // ${formatMoney(award)} CLEARED${bonus ? ' // QUIET BONUS' : ''}`, 'good');
     radio('Satchel delivered. Nobody got a name. Good work.');
     beep(720, .12, 'sine');
     beep(960, .1, 'sine');
+  }
+
+  function useHideout(hideout) {
+    const condition = playerCar ? playerCar.health / playerCar.spec.durability : 1;
+    const repairCost = Math.ceil((1 - condition) * 320);
+    const coolCost = heat > 0 ? 45 : 0;
+    const total = repairCost + coolCost;
+    if (total > 0 && money < total) {
+      notify(`HIDEOUT // NEED ${formatMoney(total)} FOR REPAIRS AND A CLEAN TRAIL`, 'warn');
+      return;
+    }
+    money -= total;
+    if (playerCar) playerCar.health = playerCar.spec.durability;
+    heat = 0;
+    police = [];
+    player.hidden = true;
+    careerStreak = Math.max(careerStreak, 0);
+    persistCareer();
+    notify(`${hideout.name} // WAGON READY, TRAIL COLD`, 'good');
+    radio('The law lost the scent. Your wagon is ready when you are.');
+    if (player.onFoot) enterInterior({ x: hideout.x, y: hideout.y + 28, label: 'HIDEOUT', hideout: true });
   }
 
   function exitVehicle() {
@@ -481,8 +582,14 @@
     player.x = playerCar.x + Math.cos(playerCar.angle + Math.PI / 2) * 28;
     player.y = playerCar.y + Math.sin(playerCar.angle + Math.PI / 2) * 28;
     player.hidden = false;
-    notify('ON FOOT // FIND COVER OR FIND ANOTHER RIDE', '');
-    radio('Outlaw left the wagon. Riders, check the last known trail.');
+    if (mission && mission.state === 'active' && mission.key === 'switch' && mission.phase === 'route' && dist(playerCar, mission.destination) < 120) {
+      mission.phase = 'steal';
+      notify('HOT WAGON BURNED // TAKE SOMETHING CLEAN', 'good');
+      radio('Old wagon is abandoned. Find another set of wheels.');
+    } else {
+      notify('ON FOOT // FIND COVER OR FIND ANOTHER RIDE', '');
+      radio('Outlaw left the wagon. Riders, check the last known trail.');
+    }
     addHeat(.12);
   }
 
@@ -501,8 +608,15 @@
   function stealVehicle(vehicle) {
     enterVehicle(vehicle);
     addHeat(.38);
-    notify('HOTWIRE // THE OWNER WILL NOTICE', 'warn');
-    radio('Outlaw may have changed wagons. Update the description.');
+    if (mission && mission.state === 'active' && mission.phase === 'steal') {
+      mission.phase = 'escape';
+      mission.destination = mission.handoff;
+      notify('CLEAN WAGON // NOW REACH THE HANDOFF', 'good');
+      radio('Description changed. Riders are searching the old wagon.');
+    } else {
+      notify('HOTWIRE // THE OWNER WILL NOTICE', 'warn');
+      radio('Outlaw may have changed wagons. Update the description.');
+    }
   }
 
   function enterInterior(door) {
@@ -510,8 +624,14 @@
     player.interior = door;
     player.interiorPos = { x: 0, y: 54 };
     player.hidden = true;
-    notify(`${door.label} // LINE OF SIGHT BROKEN`, 'good');
-    radio('Visual lost at the last intersection. Check the doors.');
+    if (mission && mission.state === 'active' && mission.key === 'recovery' && mission.phase === 'retrieve') {
+      mission.phase = 'handoff';
+      notify('LEDGER SECURED // TAKE IT TO THE HANDOFF', 'good');
+      radio('Ledger is secured. Keep the posse away from the handoff.');
+    } else {
+      notify(`${door.label} // LINE OF SIGHT BROKEN`, 'good');
+      radio('Visual lost at the last intersection. Check the doors.');
+    }
     beep(330, .08, 'sine');
   }
 
@@ -564,8 +684,11 @@
   function caught() {
     if (gameMode !== 'playing') return;
     money = Math.max(0, money - 180);
+    careerStreak = 0;
+    persistCareer();
     heat = 0;
     police = [];
+    lawSearch.ttl = 0;
     player.onFoot = false;
     player.interior = null;
     player.hidden = false;
@@ -603,7 +726,29 @@
     setTimeout(() => el.remove(), 4200);
   }
 
-  function getMissionTarget() { if (!mission) return null; return mission.state === 'active' && mission.phase === 'drop' ? mission.destination : mission.start; }
+  function getMissionTarget() {
+    if (!mission) return null;
+    if (mission.state === 'cooldown') return null;
+    if (mission.state !== 'active') return mission.start;
+    if (mission.phase === 'retrieve') return mission.retrievalDoor;
+    if (mission.phase === 'handoff' || mission.phase === 'steal' || mission.phase === 'escape') return mission.handoff;
+    return mission.destination;
+  }
+
+  function missionInstruction() {
+    if (!mission) return '';
+    if (mission.state === 'available') return `Ride to the ${mission.start.label.toLowerCase()} and press E to take the job.`;
+    if (mission.state === 'cooldown') return 'Payment cleared. The next telegraph is already ringing.';
+    if (mission.phase === 'retrieve') return `Leave the wagon. Enter the ${mission.retrievalDoor.label.toLowerCase()} and retrieve the ledger.`;
+    if (mission.phase === 'handoff') return `Get the ${mission.title === 'WITNESS OUT' ? 'witness' : 'goods'} to the ${mission.handoff.label.toLowerCase()}.`;
+    if (mission.phase === 'steal') return 'The wagon is burned. Take a clean ride, then reach the handoff.';
+    if (mission.phase === 'escape') return `Reach the ${mission.handoff.label.toLowerCase()} before the posse closes in.`;
+    if (mission.key === 'recovery') return `Reach the ${mission.destination.label.toLowerCase()}, then get out on foot.`;
+    if (mission.key === 'extraction') return `Reach the ${mission.destination.label.toLowerCase()} and find the witness.`;
+    if (mission.key === 'switch') return `Reach the ${mission.destination.label.toLowerCase()} and leave the hot wagon.`;
+    if (mission.key === 'quiet') return `Reach the ${mission.destination.label.toLowerCase()} without raising the law heat.`;
+    return `Reach the ${mission.destination.label.toLowerCase()} and make the drop.`;
+  }
 
   function updateHUD(dt) {
     const district = districtAt(targetPos());
@@ -630,21 +775,34 @@
     const state = mission.state;
     $('mission-code').textContent = `JOB—${String(mission.number).padStart(3, '0')}`;
     $('mission-title').textContent = state === 'cooldown' ? 'CLEAN EXIT' : mission.title;
-    $('mission-description').textContent = state === 'available' ? `Drive to the ${mission.start.label.toLowerCase()} and press E to take the job.` : state === 'cooldown' ? 'Payment cleared. The next telegraph is already ringing.' : mission.phase === 'drop' ? `Reach the ${mission.destination.label.toLowerCase()} before the county notices.` : mission.description;
-    $('mission-pay').textContent = state === 'cooldown' ? '+ ' + formatMoney(mission.payout) : formatMoney(mission.payout);
-    $('mission-risk').textContent = state === 'active' ? `RISK / ${['LOW', 'MED', 'HIGH'][mission.risk - 1]}` : state === 'cooldown' ? 'STATUS / PAID' : 'STATUS / AVAILABLE';
+    $('mission-description').textContent = missionInstruction();
+    $('mission-pay').textContent = state === 'cooldown' ? '+ ' + formatMoney(mission.award || mission.payout) : formatMoney(mission.payout);
+    $('mission-risk').textContent = state === 'active' ? `RISK / ${['LOW', 'MED', 'HIGH'][mission.risk - 1]}${mission.key === 'quiet' && !mission.quietBroken ? ' / QUIET BONUS' : ''}` : state === 'cooldown' ? 'STATUS / PAID' : 'STATUS / AVAILABLE';
     $('mission-clock').textContent = state === 'active' ? `${String(Math.floor(mission.timer / 60)).padStart(2, '0')}:${String(Math.floor(mission.timer % 60)).padStart(2, '0')}` : runMode === 'endless' ? 'ENDLESS' : 'READY';
-    $('mission-kicker-text').textContent = state === 'active' ? (mission.phase === 'drop' ? 'ACTIVE JOB' : 'MOVE') : state === 'cooldown' ? 'JOB COMPLETE' : 'AVAILABLE JOB';
+    $('mission-kicker-text').textContent = state === 'active' ? (mission.phase === 'route' ? 'ACTIVE JOB' : mission.phase.replace('-', ' ').toUpperCase()) : state === 'cooldown' ? 'JOB COMPLETE' : 'AVAILABLE JOB';
     $('mission-status-dot').style.background = state === 'cooldown' ? 'var(--cyan)' : state === 'active' ? 'var(--red)' : 'var(--acid)';
   }
 
   function getPrompt() {
     if (player.interior) return 'EXIT BUILDING';
     const p = targetPos();
+    const hideout = world && world.hideouts ? world.hideouts.find(h => dist(p, h) < 82) : null;
     if (mission && mission.state === 'available' && dist(p, mission.start) < 90) return 'ACCEPT JOB';
-    if (mission && mission.state === 'active' && mission.phase === 'drop' && dist(p, mission.destination) < 90) return 'MAKE THE DROP';
+    if (mission && mission.state === 'active') {
+      const target = getMissionTarget();
+      if (target && dist(p, target) < 92) {
+        if (mission.phase === 'retrieve') return 'FIND THE LEDGER INSIDE';
+        if (mission.phase === 'steal') return 'TAKE CLEAN WAGON';
+        if (mission.phase === 'handoff') return 'MAKE THE HANDOFF';
+        if (mission.phase === 'escape') return 'REACH SAFE TRAIL';
+        if (mission.key === 'recovery' || mission.key === 'extraction' || mission.key === 'switch') return player.onFoot ? 'START THE NEXT STEP' : 'PULL IN / STOP';
+        return 'MAKE THE DROP';
+      }
+    }
+    if (hideout && !player.onFoot && Math.abs(playerCar.speed) < 35) return 'PULL INTO HIDEOUT';
+    if (hideout && player.onFoot) return 'ENTER HIDEOUT';
     if (player.onFoot) {
-      if (dist(p, playerCar) < 45 && !playerCar.abandoned) return 'ENTER VEHICLE';
+      if (dist(p, playerCar) < 45) return mission && mission.phase === 'steal' ? 'WAGON IS BURNED' : 'ENTER VEHICLE';
       const abandoned = traffic.find(v => v.abandoned && dist(p, v) < 40);
       if (abandoned) return 'TAKE VEHICLE';
       const door = world.doors.find(d => dist(p, d) < 55);
@@ -662,6 +820,7 @@
     drawWorld();
     ctx.restore();
     drawLighting();
+    drawObjectiveGuide();
     drawRain();
     drawVignette();
   }
@@ -682,6 +841,7 @@
     drawRoads();
     drawBuildings();
     drawProps();
+    drawHideouts();
     drawJobMarker();
     for (const v of traffic) drawVehicle(v, false);
     if (playerCar) drawVehicle(playerCar, false);
@@ -838,6 +998,16 @@
     ctx.restore();
   }
 
+  function drawHideouts() {
+    for (const h of world.hideouts) {
+      const pulse = .78 + Math.sin(elapsed * 2 + h.x) * .08;
+      ctx.fillStyle = 'rgba(17,11,8,.38)'; ctx.beginPath(); ctx.ellipse(h.x + 8, h.y + 12, 34, 12, 0, 0, TAU); ctx.fill();
+      ctx.fillStyle = '#5b402d'; ctx.fillRect(h.x - 27, h.y - 17, 54, 34); ctx.fillStyle = '#34251d'; ctx.beginPath(); ctx.moveTo(h.x - 35, h.y - 17); ctx.lineTo(h.x, h.y - 37); ctx.lineTo(h.x + 35, h.y - 17); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#e5bd63'; ctx.fillRect(h.x - 5, h.y + 1, 10, 16); ctx.fillStyle = `rgba(229,189,99,${pulse})`; ctx.fillRect(h.x - 22, h.y - 4, 6, 6); ctx.fillRect(h.x + 16, h.y - 4, 6, 6);
+      ctx.fillStyle = '#f4e7cb'; ctx.font = '700 8px Space Mono'; ctx.textAlign = 'center'; ctx.fillText(h.name, h.x, h.y - 43); ctx.textAlign = 'left';
+    }
+  }
+
   function drawJobMarker() {
     const target = getMissionTarget();
     if (!target || mission.state === 'cooldown') return;
@@ -845,7 +1015,30 @@
     ctx.save(); ctx.translate(target.x, target.y);
     ctx.strokeStyle = mission.state === 'active' ? '#d79855' : '#e5bd63'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(0, 0, 28 * pulse, 0, TAU); ctx.stroke();
     ctx.fillStyle = mission.state === 'active' ? 'rgba(215,152,85,.18)' : 'rgba(229,189,99,.14)'; ctx.beginPath(); ctx.arc(0, 0, 17, 0, TAU); ctx.fill();
-    ctx.fillStyle = '#f1f4dd'; ctx.font = '700 11px Space Mono'; ctx.textAlign = 'center'; ctx.fillText(mission.state === 'active' ? 'DROP' : 'JOB', 0, 4); ctx.restore();
+    const markerLabel = mission.state !== 'active' ? 'JOB' : mission.phase === 'retrieve' ? 'LEDGER' : mission.phase === 'steal' ? 'WAGON' : mission.phase === 'handoff' ? 'HANDOFF' : mission.phase === 'escape' ? 'ESCAPE' : 'DROP';
+    ctx.fillStyle = '#f4e7cb'; ctx.font = '700 10px Space Mono'; ctx.textAlign = 'center'; ctx.fillText(markerLabel, 0, 4); ctx.restore();
+  }
+
+  function drawObjectiveGuide() {
+    const target = getMissionTarget();
+    if (!target || mission.state === 'cooldown' || player.interior) return;
+    const zoom = 1.08;
+    const sx = W / 2 + (target.x - camera.x) * zoom;
+    const sy = H / 2 + (target.y - camera.y) * zoom;
+    const margin = 35;
+    const onScreen = sx > margin && sx < W - margin && sy > margin && sy < H - margin;
+    if (!onScreen) {
+      const angle = Math.atan2(sy - H / 2, sx - W / 2);
+      const edgeX = clamp(W / 2 + Math.cos(angle) * (W / 2 - 30), 30, W - 30);
+      const edgeY = clamp(H / 2 + Math.sin(angle) * (H / 2 - 30), 30, H - 30);
+      ctx.save(); ctx.translate(edgeX, edgeY); ctx.rotate(angle);
+      ctx.fillStyle = '#e5bd63'; ctx.beginPath(); ctx.moveTo(12, 0); ctx.lineTo(-7, -7); ctx.lineTo(-4, 0); ctx.lineTo(-7, 7); ctx.closePath(); ctx.fill(); ctx.restore();
+      ctx.save(); ctx.fillStyle = 'rgba(244,231,203,.78)'; ctx.font = '700 10px Space Mono'; ctx.textAlign = 'center'; ctx.fillText(`${Math.round(dist(target, targetPos()) / 10)}m`, edgeX, edgeY + 22); ctx.restore();
+    } else {
+      ctx.save();
+      ctx.strokeStyle = 'rgba(229,189,99,.75)'; ctx.lineWidth = 1; ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.arc(sx, sy, 34 + Math.sin(elapsed * 4) * 2, 0, TAU); ctx.stroke(); ctx.setLineDash([]);
+      ctx.fillStyle = 'rgba(244,231,203,.78)'; ctx.font = '700 10px Space Mono'; ctx.textAlign = 'center'; ctx.fillText(`${Math.round(dist(target, targetPos()) / 10)}m`, sx, sy - 40); ctx.restore();
+    }
   }
 
   function drawLighting() {
@@ -901,8 +1094,8 @@
 
   function drawRain() {
     ctx.save();
-    ctx.lineWidth = 1;
-    for (const d of rain) { ctx.strokeStyle = `rgba(123,211,220,${d.alpha})`; ctx.beginPath(); ctx.moveTo(d.x, d.y); ctx.lineTo(d.x + d.slant, d.y + d.len); ctx.stroke(); }
+    ctx.lineWidth = weather.wet ? 1 : 2;
+    for (const d of rain) { ctx.strokeStyle = weather.wet ? `rgba(135,174,178,${d.alpha})` : `rgba(196,153,95,${d.alpha})`; ctx.beginPath(); ctx.moveTo(d.x, d.y); ctx.lineTo(d.x + d.slant, d.y + d.len); ctx.stroke(); }
     ctx.restore();
   }
 
@@ -921,9 +1114,15 @@
     for (const x of world.roadsX) { mapCtx.beginPath(); mapCtx.moveTo(x*sx,0); mapCtx.lineTo(x*sx,mh); mapCtx.stroke(); }
     for (const y of world.roadsY) { mapCtx.beginPath(); mapCtx.moveTo(0,y*sy); mapCtx.lineTo(mw,y*sy); mapCtx.stroke(); }
     mapCtx.fillStyle = 'rgba(244,231,203,.22)'; for (const b of world.buildings) mapCtx.fillRect(b.x*sx,b.y*sy,b.w*sx,b.h*sy);
-    const target = getMissionTarget(); if (target) { mapCtx.fillStyle = '#e5bd63'; mapCtx.beginPath(); mapCtx.arc(target.x*sx,target.y*sy,4,0,TAU); mapCtx.fill(); }
+    const p = targetPos();
+    const target = getMissionTarget();
+    if (target) {
+      mapCtx.strokeStyle = 'rgba(229,189,99,.55)'; mapCtx.lineWidth = 1; mapCtx.setLineDash([4, 4]); mapCtx.beginPath(); mapCtx.moveTo(p.x*sx, p.y*sy); mapCtx.lineTo(target.x*sx, target.y*sy); mapCtx.stroke(); mapCtx.setLineDash([]);
+      mapCtx.fillStyle = '#e5bd63'; mapCtx.beginPath(); mapCtx.arc(target.x*sx,target.y*sy,4,0,TAU); mapCtx.fill();
+    }
+    if (lawSearch.ttl > 0) { mapCtx.strokeStyle = `rgba(167,68,59,${Math.min(.8, lawSearch.ttl / 9)})`; mapCtx.lineWidth = 2; mapCtx.setLineDash([3, 3]); mapCtx.beginPath(); mapCtx.arc(lawSearch.x*sx, lawSearch.y*sy, 15 + (9 - lawSearch.ttl) * 3, 0, TAU); mapCtx.stroke(); mapCtx.setLineDash([]); }
     for (const c of police) { mapCtx.fillStyle = '#a7443b'; mapCtx.fillRect(c.x*sx-2,c.y*sy-2,4,4); }
-    const p = targetPos(); mapCtx.save(); mapCtx.translate(p.x*sx,p.y*sy); mapCtx.rotate((p.angle || 0)); mapCtx.fillStyle = '#87aeb2'; mapCtx.beginPath(); mapCtx.moveTo(6,0); mapCtx.lineTo(-5,-4); mapCtx.lineTo(-5,4); mapCtx.closePath(); mapCtx.fill(); mapCtx.restore();
+    mapCtx.save(); mapCtx.translate(p.x*sx,p.y*sy); mapCtx.rotate((p.angle || 0)); mapCtx.fillStyle = '#87aeb2'; mapCtx.beginPath(); mapCtx.moveTo(6,0); mapCtx.lineTo(-5,-4); mapCtx.lineTo(-5,4); mapCtx.closePath(); mapCtx.fill(); mapCtx.restore();
   }
 
   function shade(hex, amount) {
@@ -937,7 +1136,7 @@
     gameMode = pause ? 'paused' : 'playing';
     pauseScreen.hidden = !pause;
     if (pause) {
-      $('pause-stats').innerHTML = `<div class="pause-stat"><b>${formatMoney(money)}</b><span>CASH</span></div><div class="pause-stat"><b>${missionNumber - 1}</b><span>JOBS</span></div><div class="pause-stat"><b>${Math.ceil(heat)}/5</b><span>HEAT</span></div>`;
+      $('pause-stats').innerHTML = `<div class="pause-stat"><b>${formatMoney(money)}</b><span>CASH</span></div><div class="pause-stat"><b>${careerStreak}</b><span>STREAK</span></div><div class="pause-stat"><b>${bestStreak}</b><span>BEST STREAK</span></div>`;
     } else { lastTime = performance.now(); requestAnimationFrame(loop); }
   }
 
@@ -969,6 +1168,7 @@
   document.querySelectorAll('[data-touch]').forEach(btn => { const down = (e) => { e.preventDefault(); justPressed['touch'+btn.dataset.touch[0].toUpperCase()+btn.dataset.touch.slice(1)] = true; keys[' ' + btn.dataset.touch] = true; }; const up = () => { keys[' ' + btn.dataset.touch] = false; }; btn.addEventListener('touchstart', down, {passive:false}); btn.addEventListener('touchend', up); });
 
   // Let the title card feel alive even before the first run.
+  loadCareer();
   menuSeed.textContent = seedText;
   ctx.fillStyle = '#090c15'; ctx.fillRect(0,0,W,H);
 })();

@@ -8,4 +8,13 @@ A compact retro-western escape game for the browser. Drive the procedural fronti
 
 The game is dependency-free and uses relative URLs for GitHub Pages. The included workflow deploys the site automatically. Because this repository is currently named `Smashmybro`, GitHub's default project URL is `https://qynl.github.io/Smashmybro/`; the exact `/getaways/` path requires a repository named `getaways` or a separate redirect/site configuration.
 
-See [`GAME_PLAN.md`](GAME_PLAN.md) for the staged Dustfall improvement plan.
+## Round 2 systems
+
+- Multi-step mission types with retrieval, witness extraction, wagon switching, handoffs, escape legs, and quiet-run bonuses
+- Functional hideouts with repair costs, heat reset, and interior entry
+- Persistent career cash, best streak, and score via local storage
+- Sheriff last-known search ring and route lines on the minimap
+- Off-screen objective arrows, distance markers, weather forecasts, hideout landmarks, and clearer objective prompts
+- Deterministic dry-trail or storm forecast per county seed
+
+See [`GAME_PLAN.md`](GAME_PLAN.md) for the staged western design plan and [`IMPROVEMENT_PLAN.md`](IMPROVEMENT_PLAN.md) for the current systems roadmap.
