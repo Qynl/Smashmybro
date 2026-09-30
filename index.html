@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#090b14" />
+  <meta name="description" content="GETAWAY — a stylized retro-western procedural escape game." />
+  <title>GETAWAY // Dustfall County</title>
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main id="app-shell">
+    <canvas id="game" aria-label="GETAWAY game canvas"></canvas>
+
+    <section id="title-screen" class="screen active" aria-label="Main menu">
+      <div class="title-noise"></div>
+      <div class="title-art" aria-hidden="true">
+        <span class="sun-disc"></span>
+        <span class="horizon-line"></span>
+        <span class="grid-floor"></span>
+        <span class="silhouette silhouette-a"></span>
+        <span class="silhouette silhouette-b"></span>
+        <span class="silhouette silhouette-c"></span>
+        <span class="painted-sign">LAST<br>CHANCE</span>
+      </div>
+      <div class="brand-lockup">
+        <p class="eyebrow"><span class="live-dot"></span> A PROCEDURAL FRONTIER ESCAPE</p>
+        <h1>GET<span>AWAY</span></h1>
+        <p class="tagline">the trail remembers. the dark doesn't.</p>
+      </div>
+      <div class="menu-panel">
+        <div class="menu-copy">
+          <p class="label">DUSTFALL COUNTY // 01</p>
+          <p>Take the satchel. Read the trail. Leave no witness.</p>
+        </div>
+        <div class="menu-actions">
+          <button id="career-btn" class="primary-btn"><span>01</span> START CAREER <b>↵</b></button>
+          <button id="endless-btn" class="ghost-btn"><span>02</span> OUTLAW RUN <b>↵</b></button>
+        </div>
+        <div class="seed-row"><span>COUNTY SEED</span><strong id="menu-seed">DUST-091</strong><button id="reroll-btn" class="icon-btn" aria-label="Reroll county seed">↻</button></div>
+      </div>
+      <div class="title-footer"><span>© 2026 / SMASHMYBRO STUDIOS</span><span>WASD / ARROWS TO DRIVE&nbsp;&nbsp; • &nbsp;&nbsp;E TO ACT</span></div>
+    </section>
+
+    <section id="pause-screen" class="screen modal-screen" aria-label="Paused" hidden>
+      <div class="modal-card">
+        <p class="eyebrow">TELEGRAPH LINE CUT</p>
+        <h2>PAUSED<span>.</span></h2>
+        <p class="modal-sub">The horses are watered. The law is not waiting.</p>
+        <div class="pause-stats" id="pause-stats"></div>
+        <button id="resume-btn" class="primary-btn">RESUME <b>ESC</b></button>
+        <button id="restart-btn" class="ghost-btn">RESTART RUN</button>
+      </div>
+    </section>
+
+    <section id="game-ui" aria-live="polite">
+      <header class="hud-top">
+        <div class="hud-brand"><span class="brand-mark">G</span><span>GETAWAY</span><i></i></div>
+        <div class="district-readout"><span class="tiny-label">CURRENT COUNTY</span><strong id="district-name">DUSTFALL MAIN STREET</strong></div>
+        <div class="hud-money"><span class="tiny-label">CASH</span><strong id="money-value">$000</strong></div>
+        <button id="pause-btn" class="hud-pause" aria-label="Pause">Ⅱ</button>
+      </header>
+      <aside class="mission-card" id="mission-card">
+        <div class="mission-kicker"><span id="mission-status-dot"></span><span id="mission-kicker-text">AVAILABLE JOB</span><span class="mission-code" id="mission-code">JOB—001</span></div>
+        <h2 id="mission-title">LOADING DUSTFALL</h2>
+        <p id="mission-description">Ride to the telegraph office to pick up a job.</p>
+        <div class="mission-meta"><span id="mission-pay">$—</span><span id="mission-risk">RISK / LOW</span><span id="mission-clock">READY</span></div>
+      </aside>
+      <div class="heat-panel" id="heat-panel">
+        <div class="heat-label"><span>LAW HEAT</span><strong id="heat-stage">COLD</strong></div>
+        <div class="heat-pips" id="heat-pips"><i></i><i></i><i></i><i></i><i></i></div>
+      </div>
+      <div class="speed-panel">
+        <strong id="speed-value">000</strong><span>KM/H</span>
+        <div class="vehicle-condition"><span id="vehicle-name">DUSTWIND COUPE</span><div><i id="condition-bar"></i></div></div>
+      </div>
+      <div class="radio-panel" id="radio-panel"><span class="radio-light"></span><strong id="radio-source">TELEGRAPH / COUNTY BAND</strong><p id="radio-line">Storm rolling off Red Mesa. Keep to the hard road.</p></div>
+      <div class="interaction-prompt" id="interaction-prompt" hidden><kbd>E</kbd><span id="interaction-text">ENTER VEHICLE</span></div>
+      <div class="crosshair" id="crosshair" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+      <div class="minimap" id="minimap"><canvas id="map-canvas" width="180" height="180"></canvas><span class="map-north">N</span><span class="map-label" id="map-label">DUSTFALL COUNTY</span></div>
+      <div class="toast-stack" id="toast-stack"></div>
+      <div class="control-hint" id="control-hint"><span><b>WASD</b> MOVE</span><span><b>SPACE</b> BRAKE</span><span><b>E</b> ACTION</span><span><b>SHIFT</b> SPRINT</span></div>
+      <div class="touch-controls" id="touch-controls" aria-hidden="true"><div class="touch-stick"><i></i></div><button data-touch="brake">BRAKE</button><button data-touch="action">E</button></div>
+    </section>
+  </main>
+  <script src="game.js"></script>
+</body>
+</html>
