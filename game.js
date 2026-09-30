@@ -33,7 +33,9 @@
   let playerCar;
   let police = [];
   let traffic = [];
+  let countyEvents = [];
   let lawSearch = { x: 0, y: 0, ttl: 0 };
+  let flash = 0;
   let mission;
   let money = 460;
   let careerCash = 460;
@@ -51,6 +53,10 @@
   let ambientTimer = 8;
   let missionNumber = 1;
   let audioContext = null;
+  let engineOsc = null;
+  let engineGain = null;
+  let windOsc = null;
+  let windGain = null;
   let touchVector = { x: 0, y: 0 };
 
   const VEHICLE_TYPES = {
@@ -118,6 +124,7 @@
     const parks = [];
     const props = [];
     const jobSites = [];
+    const events = [];
     const hideouts = [
       { x: 620, y: 530, name: 'THE SWITCHYARD', type: 'GARAGE', safe: true },
       { x: 1310, y: 2570, name: 'CINDER HOTEL', type: 'ROOM', safe: true },
@@ -184,7 +191,19 @@
 
     const streetLights = [];
     roadsX.forEach((x) => roadsY.forEach((y) => { if (r() > .12) streetLights.push({ x: x + 39, y: y + 39, phase: r() * TAU }); }));
-    return { seed, roadsX, roadsY, buildings, doors, parks, props, jobSites, hideouts, trafficCars, streetLights, signWords };
+    const eventTypes = [
+      { type: 'train', label: 'TRAIN CROSSING', note: 'A freight train is cutting across the ward.' },
+      { type: 'breakdown', label: 'BROKEN WAGON', note: 'A delivery wagon is blocking the hard road.' },
+      { type: 'bridge', label: 'WASHED BRIDGE', note: 'Blackwater is running high. Find another crossing.' },
+      { type: 'riders', label: 'RIVAL RIDERS', note: 'Two strangers are watching the road.' },
+      { type: 'search', label: 'SHERIFF SEARCH', note: 'The posse is sweeping the last-known trail.' }
+    ];
+    for (let i = 0; i < 8; i++) {
+      const horizontal = r() > .5;
+      const road = horizontal ? pick(r, roadsY) : pick(r, roadsX);
+      events.push({ ...pick(r, eventTypes), x: horizontal ? 340 + r() * (WORLD_W - 680) : road + (r() > .5 ? 26 : -26), y: horizontal ? road + (r() > .5 ? 26 : -26) : 340 + r() * (WORLD_H - 680), radius: 150, active: false, triggered: false, cooldown: 7 + r() * 13, seed: r() });
+    }
+    return { seed, roadsX, roadsY, buildings, doors, parks, props, jobSites, hideouts, trafficCars, streetLights, events, signWords };
   }
 
   function districtAt(pos) {
@@ -227,6 +246,7 @@
 
   function startRun(mode) {
     ensureAudio();
+    startAudioBed();
     runMode = mode;
     gameMode = 'playing';
     titleScreen.classList.remove('active');
@@ -239,7 +259,9 @@
     resetRain();
     traffic = world.trafficCars.map(v => ({ ...v }));
     police = [];
+    countyEvents = world.events.map(e => ({ ...e }));
     lawSearch = { x: world.hideouts[0].x, y: world.hideouts[0].y, ttl: 0 };
+    flash = 0;
     player = { x: world.hideouts[0].x, y: world.hideouts[0].y + 8, angle: 0, onFoot: false, crouching: false, hidden: false, stamina: 1, jump: 0, interior: null, interiorPos: { x: 0, y: 0 } };
     playerCar = makeVehicle(mode === 'endless' ? 'compact' : 'sedan', player.x, player.y, -Math.PI / 2, true);
     money = mode === 'endless' ? 0 : careerCash;
@@ -269,10 +291,12 @@
   function update(dt) {
     updatePlayer(dt);
     updateTraffic(dt);
+    updateEvents(dt);
     updatePolice(dt);
     updateMission(dt);
     updateRain(dt);
     updateCamera(dt);
+    updateAudio();
     updateHUD(dt);
     radioTimer -= dt;
     ambientTimer -= dt;
@@ -384,6 +408,38 @@
         v.x += Math.cos(v.angle) * 23; v.y += Math.sin(v.angle) * 23;
         notify('WAGON CONTACT // A WITNESS RODE FOR THE SHERIFF', 'warn');
         addHeat(.28);
+      }
+    }
+  }
+
+  function updateEvents(dt) {
+    flash = Math.max(0, flash - dt * 3.5);
+    for (const event of countyEvents) {
+      event.cooldown -= dt;
+      if (event.active) {
+        event.timer -= dt;
+        if (event.timer <= 0) { event.active = false; event.cooldown = 12 + event.seed * 12; }
+        continue;
+      }
+      if (event.cooldown > 0 || dist(targetPos(), event) > event.radius) continue;
+      event.active = true;
+      event.timer = event.type === 'train' ? 6 : event.type === 'bridge' ? 11 : 8;
+      if (event.type === 'breakdown' && !event.vehicle) {
+        event.vehicle = makeVehicle('van', event.x + 30, event.y + 18, Math.random() > .5 ? 0 : Math.PI / 2, false);
+        event.vehicle.abandoned = true;
+        traffic.push(event.vehicle);
+      }
+      if (event.type === 'search' && heat > .35) {
+        lawSearch = { x: event.x, y: event.y, ttl: 10 };
+        notify('COUNTY SEARCH // RIDERS ARE SWEEPING THIS CROSSING', 'warn');
+        radio('Sheriff search party is moving through the last-known trail.');
+      } else if (event.type === 'riders') {
+        notify('RIVAL RIDERS // KEEP YOUR HANDS CLOSE', 'warn');
+        addHeat(.12);
+        radio('Strangers at the road. Keep moving and do not look back.');
+      } else {
+        notify(`${event.label} // ${event.note}`, event.type === 'bridge' ? 'warn' : '');
+        radio(event.note);
       }
     }
   }
@@ -676,6 +732,7 @@
     v.health = Math.max(0, v.health - impact * .09);
     v.speed *= -.28;
     camera.shake = Math.max(camera.shake, clamp(impact / 500, .08, .38));
+    flash = Math.max(flash, clamp(impact / 240, .12, .6));
     beep(75 + Math.random() * 25, .1, 'sawtooth');
     if (v.health < 22) notify('WAGON CRITICAL // FIND A SWITCH', 'warn');
     else if (impact > 90) notify('HARD IMPACT // KEEP THE WHEELS UNDER YOU', 'warn');
@@ -837,11 +894,13 @@
     ctx.fillStyle = '#251a14'; ctx.fillRect(0, 0, WORLD_W, WORLD_H);
     // District blocks / ambient color fields.
     for (const d of DISTRICTS) { ctx.fillStyle = d.color; ctx.fillRect(d.x, d.y, d.w, d.h); }
+    drawTerrain();
     drawParks();
     drawRoads();
     drawBuildings();
     drawProps();
     drawHideouts();
+    drawEvents();
     drawJobMarker();
     for (const v of traffic) drawVehicle(v, false);
     if (playerCar) drawVehicle(playerCar, false);
@@ -849,6 +908,19 @@
     if (player.onFoot) drawPerson();
     if (player.interior) { ctx.restore(); drawInteriorOverlay(); return; }
     ctx.restore();
+  }
+
+  function drawTerrain() {
+    ctx.fillStyle = 'rgba(119,72,48,.38)';
+    ctx.beginPath(); ctx.moveTo(0, 430); ctx.lineTo(260, 240); ctx.lineTo(520, 390); ctx.lineTo(810, 175); ctx.lineTo(1110, 360); ctx.lineTo(1380, 210); ctx.lineTo(1680, 380); ctx.lineTo(1680, 500); ctx.lineTo(0, 500); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = 'rgba(41,55,43,.42)';
+    ctx.beginPath(); ctx.moveTo(950, 440); ctx.lineTo(1260, 190); ctx.lineTo(1450, 340); ctx.lineTo(1770, 140); ctx.lineTo(2040, 330); ctx.lineTo(2460, 200); ctx.lineTo(2780, 420); ctx.lineTo(2780, 500); ctx.lineTo(950, 500); ctx.closePath(); ctx.fill();
+    // Canyon walls on the Red Mesa edge create a natural-looking shortcut silhouette.
+    ctx.fillStyle = 'rgba(120,67,43,.48)'; ctx.fillRect(90, 2220, 88, 470); ctx.fillRect(1510, 2110, 74, 530);
+    ctx.strokeStyle = 'rgba(215,152,85,.22)'; ctx.lineWidth = 5;
+    for (let y = 2240; y < 2660; y += 42) { ctx.beginPath(); ctx.moveTo(98, y); ctx.lineTo(167, y - 18); ctx.stroke(); }
+    // County line marker at the far east edge.
+    ctx.fillStyle = '#4a3424'; ctx.fillRect(3975, 1300, 13, 110); ctx.fillStyle = '#8e6944'; ctx.fillRect(3950, 1300, 64, 27); ctx.fillStyle = '#f4e7cb'; ctx.font = '700 8px Space Mono'; ctx.textAlign = 'center'; ctx.fillText('COUNTY LINE', 3982, 1317); ctx.textAlign = 'left';
   }
 
   function drawParks() {
@@ -1008,6 +1080,20 @@
     }
   }
 
+  function drawEvents() {
+    for (const event of countyEvents) {
+      if (event.x < camera.x - 620 || event.x > camera.x + 620 || event.y < camera.y - 420 || event.y > camera.y + 420) continue;
+      const pulse = .75 + Math.sin(elapsed * 4 + event.seed * 9) * .15;
+      const color = event.type === 'search' ? '#a7443b' : event.type === 'bridge' ? '#87aeb2' : '#d79855';
+      ctx.strokeStyle = `rgba(${event.type === 'search' ? '167,68,59' : event.type === 'bridge' ? '135,174,178' : '215,152,85'},${event.active ? .72 : .22})`; ctx.lineWidth = event.active ? 3 : 1; ctx.beginPath(); ctx.arc(event.x, event.y, 22 * pulse, 0, TAU); ctx.stroke();
+      if (event.type === 'train') { ctx.fillStyle = '#40342a'; ctx.fillRect(event.x - 24, event.y - 4, 48, 8); ctx.fillStyle = event.active ? '#a7443b' : '#d79855'; ctx.fillRect(event.x - 16, event.y - 11, 7, 5); ctx.fillRect(event.x + 9, event.y + 6, 7, 5); }
+      if (event.type === 'bridge') { ctx.strokeStyle = color; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(event.x - 24, event.y - 13); ctx.lineTo(event.x + 24, event.y + 13); ctx.moveTo(event.x - 24, event.y + 13); ctx.lineTo(event.x + 24, event.y - 13); ctx.stroke(); }
+      if (event.type === 'riders') { ctx.fillStyle = '#3b2a20'; ctx.fillRect(event.x - 18, event.y - 8, 36, 5); ctx.fillStyle = '#d79855'; ctx.fillRect(event.x - 17, event.y - 12, 5, 5); ctx.fillRect(event.x + 12, event.y - 12, 5, 5); }
+      if (event.type === 'search') { ctx.fillStyle = color; ctx.fillRect(event.x - 3, event.y - 16, 6, 32); ctx.fillRect(event.x - 16, event.y - 3, 32, 6); }
+      if (event.active) { ctx.fillStyle = '#f4e7cb'; ctx.font = '700 8px Space Mono'; ctx.textAlign = 'center'; ctx.fillText(event.label, event.x, event.y - 28); ctx.textAlign = 'left'; }
+    }
+  }
+
   function drawJobMarker() {
     const target = getMissionTarget();
     if (!target || mission.state === 'cooldown') return;
@@ -1101,7 +1187,8 @@
 
   function drawVignette() {
     const g = ctx.createRadialGradient(W / 2, H / 2, 150, W / 2, H / 2, 600); g.addColorStop(0, 'rgba(2,5,10,0)'); g.addColorStop(1, 'rgba(2,5,10,.58)'); ctx.fillStyle = g; ctx.fillRect(0,0,W,H);
-    if (heat >= 3 && Math.sin(elapsed * 11) > .65) { ctx.fillStyle = 'rgba(255,45,71,.055)'; ctx.fillRect(0,0,W,H); }
+    if (heat >= 3 && Math.sin(elapsed * 11) > .65) { ctx.fillStyle = 'rgba(167,68,59,.055)'; ctx.fillRect(0,0,W,H); }
+    if (flash > 0) { ctx.fillStyle = `rgba(244,231,203,${flash * .18})`; ctx.fillRect(0, 0, W, H); }
   }
 
   function drawMap() {
@@ -1114,6 +1201,9 @@
     for (const x of world.roadsX) { mapCtx.beginPath(); mapCtx.moveTo(x*sx,0); mapCtx.lineTo(x*sx,mh); mapCtx.stroke(); }
     for (const y of world.roadsY) { mapCtx.beginPath(); mapCtx.moveTo(0,y*sy); mapCtx.lineTo(mw,y*sy); mapCtx.stroke(); }
     mapCtx.fillStyle = 'rgba(244,231,203,.22)'; for (const b of world.buildings) mapCtx.fillRect(b.x*sx,b.y*sy,b.w*sx,b.h*sy);
+    for (const event of countyEvents) {
+      if (event.active || event.type === 'bridge' || event.type === 'train') { mapCtx.fillStyle = event.type === 'search' ? '#a7443b' : '#d79855'; mapCtx.fillRect(event.x*sx - 2, event.y*sy - 2, 4, 4); }
+    }
     const p = targetPos();
     const target = getMissionTarget();
     if (target) {
@@ -1141,6 +1231,24 @@
   }
 
   function ensureAudio() { if (!audioContext) { try { audioContext = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {} } if (audioContext && audioContext.state === 'suspended') audioContext.resume(); }
+
+  function startAudioBed() {
+    if (!audioContext || engineOsc) return;
+    try {
+      engineOsc = audioContext.createOscillator(); engineGain = audioContext.createGain(); engineOsc.type = 'sawtooth'; engineOsc.frequency.value = 58; engineGain.gain.value = .0001; engineOsc.connect(engineGain); engineGain.connect(audioContext.destination); engineOsc.start();
+      windOsc = audioContext.createOscillator(); windGain = audioContext.createGain(); windOsc.type = 'sine'; windOsc.frequency.value = 42; windGain.gain.value = .0001; windOsc.connect(windGain); windGain.connect(audioContext.destination); windOsc.start();
+    } catch (e) { engineOsc = null; }
+  }
+
+  function updateAudio() {
+    if (!audioContext || !engineGain || !engineOsc) return;
+    const speed = player && playerCar && !player.onFoot ? Math.abs(playerCar.speed) : 0;
+    const now = audioContext.currentTime;
+    engineOsc.frequency.setTargetAtTime(56 + speed * .42 + (playerCar ? playerCar.spec.weight * 4 : 0), now, .04);
+    engineGain.gain.setTargetAtTime(speed > 4 ? .012 + Math.min(.028, speed / 6500) : .0001, now, .08);
+    if (windGain) windGain.gain.setTargetAtTime(weather.wet ? .006 : .002, now, .25);
+  }
+
   function beep(freq, duration, type) { if (!audioContext) return; const o = audioContext.createOscillator(); const g = audioContext.createGain(); o.type = type || 'sine'; o.frequency.value = freq; g.gain.setValueAtTime(.0001, audioContext.currentTime); g.gain.exponentialRampToValueAtTime(.055, audioContext.currentTime + .012); g.gain.exponentialRampToValueAtTime(.0001, audioContext.currentTime + duration); o.connect(g); g.connect(audioContext.destination); o.start(); o.stop(audioContext.currentTime + duration + .02); }
 
   function setSeed() { const names = ['DUST','MESA','COTTONWOOD','BLACKWATER','CINDER','PRAIRIE']; seedText = `${choice(names)}-${String(10 + Math.floor(Math.random() * 890)).padStart(3,'0')}`; menuSeed.textContent = seedText; }
