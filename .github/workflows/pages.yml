@@ -2,7 +2,10 @@ name: Deploy GETAWAY to GitHub Pages
 
 on:
   push:
-    branches: [arena/01a0f161-smashmybro, main]
+    branches:
+      - 'arena/01a0f1aa-smashmybro'
+      - 'arena/**'
+      - 'main'
   workflow_dispatch:
 
 permissions:
