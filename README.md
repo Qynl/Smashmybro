@@ -18,3 +18,7 @@ The game is dependency-free and uses relative URLs for GitHub Pages. The include
 - Deterministic dry-trail or storm forecast per county seed
 
 See [`GAME_PLAN.md`](GAME_PLAN.md) for the staged western design plan and [`IMPROVEMENT_PLAN.md`](IMPROVEMENT_PLAN.md) for the current systems roadmap.
+
+## Also in this repo
+
+- [`amongus/`](amongus/) — **IMPOSTOR // Skeldrift Station**, a dependency-free Among Us style social-deduction game (9 crew, 2 impostors, 22 tasks, 9 minigames, sabotages, vents, meetings and voting). Open `amongus/index.html` or browse to `/amongus/` on the deployed site.

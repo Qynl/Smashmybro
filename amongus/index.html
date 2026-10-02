@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>IMPOSTOR // Skeldrift Station</title>
+<meta name="description" content="A dependency-free Among Us style social-deduction game: do tasks, spot the impostor, survive the vote." />
+<link rel="icon" href="favicon.svg" type="image/svg+xml" />
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<div id="app">
+  <canvas id="game"></canvas>
+
+  <!-- ===== HUD ===== -->
+  <div id="hud" hidden>
+    <div class="hud-top">
+      <div class="taskbar-wrap">
+        <span class="taskbar-label">TOTAL TASKS</span>
+        <div class="taskbar"><i id="taskbar-fill"></i></div>
+      </div>
+      <div id="sabotage-banner" hidden><span id="sabotage-text">REACTOR MELTDOWN</span><strong id="sabotage-timer">0:30</strong></div>
+    </div>
+
+    <div id="task-list">
+      <h3>TASKS</h3>
+      <ul id="task-items"></ul>
+    </div>
+
+    <div id="role-chip"><span id="role-chip-text">CREWMATE</span></div>
+
+    <div id="buttons">
+      <button id="btn-map" class="action-btn small" title="Map (Tab)"><span>MAP</span></button>
+      <button id="btn-sabotage" class="action-btn sabotage" hidden title="Sabotage (F)"><span>SAB</span></button>
+      <button id="btn-report" class="action-btn report" title="Report (R)"><span>RPT</span></button>
+      <button id="btn-kill" class="action-btn kill" hidden title="Kill (Q)"><span>KILL</span><b id="kill-cd"></b></button>
+      <button id="btn-use" class="action-btn use" title="Use (E)"><span>USE</span></button>
+    </div>
+
+    <div id="toasts"></div>
+  </div>
+
+  <!-- ===== MENU ===== -->
+  <section id="menu" class="screen active">
+    <div class="stars"></div>
+    <div class="menu-inner">
+      <h1 class="logo">IMPOST<span>O</span>R</h1>
+      <p class="sub">SKELDRIFT STATION &middot; 9 CREW &middot; 2 IMPOSTORS</p>
+      <div class="role-pick">
+        <span>PLAY AS</span>
+        <div class="seg">
+          <button class="seg-btn active" data-role="random">RANDOM</button>
+          <button class="seg-btn" data-role="crew">CREWMATE</button>
+          <button class="seg-btn" data-role="impostor">IMPOSTOR</button>
+        </div>
+      </div>
+      <button id="start-btn" class="big-btn">START ROUND</button>
+      <div class="controls">
+        <p><b>WASD</b> move &middot; <b>E</b> use &middot; <b>R</b> report &middot; <b>Q</b> kill &middot; <b>F</b> sabotage &middot; <b>TAB</b> map &middot; <b>ESC</b> close</p>
+      </div>
+      <p class="credit">a dependency-free fan tribute &middot; no assets, pure canvas</p>
+    </div>
+  </section>
+
+  <!-- ===== ROLE REVEAL ===== -->
+  <section id="reveal" class="screen" hidden>
+    <div class="reveal-inner">
+      <h2 id="reveal-role">CREWMATE</h2>
+      <p id="reveal-sub">Finish your tasks and find the impostors.</p>
+      <div id="reveal-crew"></div>
+      <button id="reveal-btn" class="big-btn">LET'S GO</button>
+    </div>
+  </section>
+
+  <!-- ===== MINIGAME MODAL ===== -->
+  <section id="task-modal" class="screen modal" hidden>
+    <div class="modal-card">
+      <header><h2 id="task-title">TASK</h2><button id="task-close" class="x">&times;</button></header>
+      <div id="task-body"></div>
+      <footer id="task-hint">Follow the prompt to complete the task.</footer>
+    </div>
+  </section>
+
+  <!-- ===== MAP OVERLAY ===== -->
+  <section id="map-screen" class="screen modal" hidden>
+    <div class="modal-card wide">
+      <header><h2>SKELDRIFT STATION</h2><button id="map-close" class="x">&times;</button></header>
+      <canvas id="map-canvas" width="1040" height="620"></canvas>
+      <footer id="sabotage-row" hidden>
+        <span class="sab-label">SABOTAGE</span>
+        <button class="sab-btn" data-sab="lights">LIGHTS</button>
+        <button class="sab-btn" data-sab="comms">COMMS</button>
+        <button class="sab-btn" data-sab="o2">O2</button>
+        <button class="sab-btn" data-sab="reactor">REACTOR</button>
+        <span id="sab-cd"></span>
+      </footer>
+    </div>
+  </section>
+
+  <!-- ===== MEETING ===== -->
+  <section id="meeting" class="screen" hidden>
+    <div class="meeting-inner">
+      <header class="meeting-head">
+        <h2 id="meeting-title">EMERGENCY MEETING</h2>
+        <div class="meeting-timer"><span id="meeting-phase">DISCUSS</span><strong id="meeting-time">15</strong></div>
+      </header>
+      <div class="meeting-body">
+        <div id="vote-grid"></div>
+        <div id="chat-log"></div>
+      </div>
+      <footer class="meeting-foot">
+        <button id="skip-vote" class="ghost">SKIP VOTE</button>
+        <span id="vote-hint">Discussing&hellip;</span>
+      </footer>
+    </div>
+  </section>
+
+  <!-- ===== EJECT CUTSCENE ===== -->
+  <section id="eject" class="screen" hidden>
+    <div class="space"></div>
+    <canvas id="eject-canvas" width="900" height="420"></canvas>
+    <p id="eject-text"></p>
+    <p id="eject-sub"></p>
+  </section>
+
+  <!-- ===== GAME OVER ===== -->
+  <section id="over" class="screen" hidden>
+    <div class="over-inner">
+      <h2 id="over-title">CREWMATES WIN</h2>
+      <p id="over-sub"></p>
+      <div id="over-crew"></div>
+      <button id="again-btn" class="big-btn">PLAY AGAIN</button>
+    </div>
+  </section>
+</div>
+<script src="map.js"></script>
+<script src="minigames.js"></script>
+<script src="game.js"></script>
+</body>
+</html>
